@@ -45,6 +45,25 @@ jobs:
             xcodebuild -downloadPlatform iOS
           fi
           xcrun simctl list runtimes available
+
+      - name: Create and boot simulator
+        id: simulator
+        run: |
+          RUNTIME_ID=$(xcrun simctl list runtimes available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["runtimes"]
+          ios = [item for item in runtimes if item["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS")]
+          if not ios:
+              raise SystemExit("No available iOS runtime")
+          print(ios[-1]["identifier"])
+          ')
+          SIMULATOR_ID=$(xcrun simctl create \
+            'LifeBook CI' \
+            'com.apple.CoreSimulator.SimDeviceType.iPhone-16' \
+            "$RUNTIME_ID")
+          xcrun simctl boot "$SIMULATOR_ID"
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          echo "udid=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
           xcrun simctl list devices available
 
       - name: Install XcodeGen
@@ -61,7 +80,7 @@ jobs:
           xcodebuild test \
             -project LifeBook.xcodeproj \
             -scheme LifeBook \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}' \
             -derivedDataPath DerivedData \
             -resultBundlePath 'TestResults-${{ matrix.suite }}.xcresult' \
             -enableCodeCoverage YES \
