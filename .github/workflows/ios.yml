@@ -16,7 +16,7 @@ concurrency:
 jobs:
   tests:
     name: ${{ matrix.name }}
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 20
     strategy:
       fail-fast: false
