@@ -44,7 +44,7 @@ struct AnalysisView: View {
                         x: .value("次数", item.count),
                         y: .value("事件", item.name)
                     )
-                    .foregroundStyle(.accentBlue.gradient)
+                    .foregroundStyle(Color.accentBlue.gradient)
                     .annotation(position: .trailing) { Text("\(item.count)").font(.caption) }
                 }
                 .frame(height: 190)
@@ -87,7 +87,7 @@ private struct MetricCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: symbol).foregroundStyle(.accentBlue)
+            Image(systemName: symbol).foregroundStyle(Color.accentBlue)
             Text(value).font(.title2.bold())
             Text(title).font(.caption).foregroundStyle(.secondary)
         }

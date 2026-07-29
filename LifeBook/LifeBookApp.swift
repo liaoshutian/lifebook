@@ -8,7 +8,7 @@ struct LifeBookApp: App {
     var body: some Scene {
         WindowGroup {
             RootTabView()
-                .tint(.accentBlue)
+                .tint(Color.accentBlue)
         }
         .modelContainer(
             for: [LifeEntry.self, EventDefinition.self],

@@ -51,7 +51,7 @@ struct CalendarHomeView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 22)
                     .frame(height: 50)
-                    .background(.accentBlue, in: Capsule())
+                    .background(Color.accentBlue, in: Capsule())
                     .shadow(color: .black.opacity(0.12), radius: 12, y: 5)
             }
             .padding(.vertical, 8)

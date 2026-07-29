@@ -36,19 +36,20 @@ enum EntryExporter {
             var rows = [
                 ["id", "timestamp", "event_id", "title", "kind", "value", "unit", "duration_minutes", "note"]
             ]
-            rows += records.map {
+            let recordRows: [[String]] = records.map {
                 [
                     $0.id.uuidString,
                     formatter.string(from: $0.timestamp),
                     $0.eventID,
                     $0.title,
                     $0.kind,
-                    $0.value.map(String.init) ?? "",
+                    $0.value.map { String($0) } ?? "",
                     $0.unit ?? "",
-                    $0.durationMinutes.map(String.init) ?? "",
+                    $0.durationMinutes.map { String($0) } ?? "",
                     $0.note
                 ]
             }
+            rows += recordRows
             let csv = rows
                 .map { $0.map(escapeCSV).joined(separator: ",") }
                 .joined(separator: "\r\n") + "\r\n"
