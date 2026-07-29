@@ -1,0 +1,179 @@
+name: Package IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      distribution_method:
+        description: IPA distribution method
+        required: true
+        default: ad-hoc
+        type: choice
+        options:
+          - ad-hoc
+          - development
+          - app-store-connect
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_BUNDLE_ID: ${{ secrets.APPLE_BUNDLE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check signing secrets
+        run: |
+          missing=0
+          for name in \
+            APPLE_CERTIFICATE_BASE64 \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_PROVISIONING_PROFILE_BASE64 \
+            APPLE_KEYCHAIN_PASSWORD \
+            APPLE_TEAM_ID \
+            APPLE_BUNDLE_ID
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not configured"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Install signing identity
+        id: signing
+        run: |
+          CERTIFICATE_PATH="$RUNNER_TEMP/distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/lifebook-signing.keychain-db"
+
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$APPLE_KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "profile_name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Verify provisioning profile
+        run: |
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy \
+            -c 'Print Entitlements:application-identifier' \
+            "$RUNNER_TEMP/profile.plist")
+          PROFILE_TEAM_ID=$(/usr/libexec/PlistBuddy \
+            -c 'Print TeamIdentifier:0' \
+            "$RUNNER_TEMP/profile.plist")
+          case "$PROFILE_APP_ID" in
+            "$APPLE_TEAM_ID.$APPLE_BUNDLE_ID"|"$APPLE_TEAM_ID.*") ;;
+            *)
+              echo "::error::Provisioning profile does not cover $APPLE_BUNDLE_ID"
+              exit 1
+              ;;
+          esac
+          if [ "$PROFILE_TEAM_ID" != "$APPLE_TEAM_ID" ]; then
+            echo "::error::Provisioning profile team does not match APPLE_TEAM_ID"
+            exit 1
+          fi
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project LifeBook.xcodeproj \
+            -scheme LifeBook \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/LifeBook.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$APPLE_BUNDLE_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ steps.signing.outputs.profile_name }}" \
+            | tee archive.log
+
+      - name: Create export options
+        env:
+          DISTRIBUTION_METHOD: ${{ inputs.distribution_method }}
+          PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
+        run: |
+          /usr/libexec/PlistBuddy -c 'Add :method string '"$DISTRIBUTION_METHOD" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :signingStyle string manual' "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :teamID string '"$APPLE_TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :stripSwiftSymbols bool true' "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles dict' "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c 'Add :provisioningProfiles:'"$APPLE_BUNDLE_ID"' string '"$PROFILE_NAME" "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Export IPA
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/LifeBook.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            | tee export.log
+          cp "$RUNNER_TEMP/export/"*.ipa LifeBook.ipa
+
+      - name: Validate IPA signature and metadata
+        run: |
+          mkdir "$RUNNER_TEMP/ipa"
+          unzip -q LifeBook.ipa -d "$RUNNER_TEMP/ipa"
+          APP_PATH=$(find "$RUNNER_TEMP/ipa/Payload" -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$APP_PATH"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_PATH/Info.plist")
+          test "$BUNDLE_ID" = "$APPLE_BUNDLE_ID"
+          shasum -a 256 LifeBook.ipa | tee LifeBook.ipa.sha256
+
+      - name: Upload signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeBook-${{ inputs.distribution_method }}
+          path: |
+            LifeBook.ipa
+            LifeBook.ipa.sha256
+            archive.log
+            export.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove temporary keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/lifebook-signing.keychain-db" || true

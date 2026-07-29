@@ -1,0 +1,120 @@
+import Foundation
+import CoreTransferable
+import UniformTypeIdentifiers
+
+enum EntryExportFormat: String, CaseIterable, Identifiable {
+    case json = "JSON"
+    case csv = "CSV"
+
+    var id: String { rawValue }
+    var fileExtension: String { rawValue.lowercased() }
+}
+
+enum EntryExporter {
+    static func data(
+        for entries: [LifeEntry],
+        format: EntryExportFormat
+    ) throws -> Data {
+        let records = entries
+            .sorted { $0.timestamp < $1.timestamp }
+            .map(ExportRecord.init)
+
+        switch format {
+        case .json:
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            return try encoder.encode(records)
+        case .csv:
+            let formatter = ISO8601DateFormatter()
+            var rows = [
+                ["id", "timestamp", "event_id", "title", "kind", "value", "unit", "duration_minutes", "note"]
+            ]
+            rows += records.map {
+                [
+                    $0.id.uuidString,
+                    formatter.string(from: $0.timestamp),
+                    $0.eventID,
+                    $0.title,
+                    $0.kind,
+                    $0.value.map(String.init) ?? "",
+                    $0.unit ?? "",
+                    $0.durationMinutes.map(String.init) ?? "",
+                    $0.note
+                ]
+            }
+            let csv = rows
+                .map { $0.map(escapeCSV).joined(separator: ",") }
+                .joined(separator: "\r\n") + "\r\n"
+            return Data(csv.utf8)
+        }
+    }
+
+    private static func escapeCSV(_ value: String) -> String {
+        guard value.contains(",") || value.contains("\"") ||
+                value.contains("\n") || value.contains("\r")
+        else { return value }
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+}
+
+struct JSONEntryExport: Transferable {
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .json) { export in
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("LifeBook-\(fileTimestamp()).json")
+            try export.data.write(to: url, options: .atomic)
+            return SentTransferredFile(url)
+        }
+    }
+}
+
+struct CSVEntryExport: Transferable {
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .commaSeparatedText) { export in
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("LifeBook-\(fileTimestamp()).csv")
+            try export.data.write(to: url, options: .atomic)
+            return SentTransferredFile(url)
+        }
+    }
+}
+
+private func fileTimestamp() -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyyMMdd-HHmmss"
+    return formatter.string(from: .now)
+}
+
+private struct ExportRecord: Codable {
+    let id: UUID
+    let timestamp: Date
+    let eventID: String
+    let title: String
+    let symbol: String
+    let colorHex: String
+    let kind: String
+    let value: Double?
+    let unit: String?
+    let note: String
+    let durationMinutes: Int?
+
+    init(_ entry: LifeEntry) {
+        id = entry.id
+        timestamp = entry.timestamp
+        eventID = entry.eventID
+        title = entry.title
+        symbol = entry.symbol
+        colorHex = entry.colorHex
+        kind = entry.kindRawValue
+        value = entry.value
+        unit = entry.unit
+        note = entry.note
+        durationMinutes = entry.durationMinutes
+    }
+}
