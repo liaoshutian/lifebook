@@ -17,7 +17,9 @@ jobs:
   tests:
     name: ${{ matrix.name }}
     runs-on: macos-15-intel
-    timeout-minutes: 20
+    # A cold hosted runner may need to download the iOS runtime before compiling.
+    # Individual tests still have strict execution allowances below.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
