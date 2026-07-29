@@ -14,9 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
+  tests:
+    name: ${{ matrix.name }}
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Unit and integration tests
+            suite: unit
+            target: LifeBookTests
+            allowance: 60
+          - name: UI tests
+            suite: ui
+            target: LifeBookUITests
+            allowance: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +55,7 @@ jobs:
           xcodegen generate
           xcodebuild -list -project LifeBook.xcodeproj
 
-      - name: Build and test
+      - name: Build and run ${{ matrix.suite }} tests
         run: |
           set -o pipefail
           xcodebuild test \
@@ -50,28 +63,33 @@ jobs:
             -scheme LifeBook \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -derivedDataPath DerivedData \
-            -resultBundlePath TestResults.xcresult \
+            -resultBundlePath 'TestResults-${{ matrix.suite }}.xcresult' \
             -enableCodeCoverage YES \
             -parallel-testing-enabled NO \
+            -only-testing:'${{ matrix.target }}' \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 60 \
-            -maximum-test-execution-time-allowance 120 \
-            | tee xcodebuild.log
+            -default-test-execution-time-allowance '${{ matrix.allowance }}' \
+            -maximum-test-execution-time-allowance '${{ matrix.allowance }}' \
+            | tee 'xcodebuild-${{ matrix.suite }}.log'
 
       - name: Export code coverage
-        if: always() && hashFiles('TestResults.xcresult/**') != ''
+        if: always()
         continue-on-error: true
         run: |
-          xcrun xccov view --report --json TestResults.xcresult > coverage.json
+          xcrun xccov view \
+            --report \
+            --json \
+            'TestResults-${{ matrix.suite }}.xcresult' \
+            > 'coverage-${{ matrix.suite }}.json'
 
       - name: Upload test diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ios-test-results
+          name: ios-${{ matrix.suite }}-test-results
           path: |
-            TestResults.xcresult
-            coverage.json
-            xcodebuild.log
+            TestResults-${{ matrix.suite }}.xcresult
+            coverage-${{ matrix.suite }}.json
+            xcodebuild-${{ matrix.suite }}.log
           if-no-files-found: warn
           retention-days: 14
