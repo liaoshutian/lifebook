@@ -1,5 +1,5 @@
 import Foundation
-import CoreTransferable
+import SwiftUI
 import UniformTypeIdentifiers
 
 enum EntryExportFormat: String, CaseIterable, Identifiable {
@@ -8,6 +8,12 @@ enum EntryExportFormat: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var fileExtension: String { rawValue.lowercased() }
+    var contentType: UTType {
+        switch self {
+        case .json: return .json
+        case .csv: return .commaSeparatedText
+        }
+    }
 }
 
 enum EntryExporter {
@@ -58,37 +64,24 @@ enum EntryExporter {
     }
 }
 
-struct JSONEntryExport: Transferable {
+struct EntryExportDocument: FileDocument {
     let data: Data
 
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .json) { export in
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LifeBook-\(fileTimestamp()).json")
-            try export.data.write(to: url, options: .atomic)
-            return SentTransferredFile(url)
-        }
+    static var readableContentTypes: [UTType] {
+        [.json, .commaSeparatedText]
     }
-}
 
-struct CSVEntryExport: Transferable {
-    let data: Data
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .commaSeparatedText) { export in
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("LifeBook-\(fileTimestamp()).csv")
-            try export.data.write(to: url, options: .atomic)
-            return SentTransferredFile(url)
-        }
+    init(data: Data) {
+        self.data = data
     }
-}
 
-private func fileTimestamp() -> String {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyyMMdd-HHmmss"
-    return formatter.string(from: .now)
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
 }
 
 private struct ExportRecord: Codable {

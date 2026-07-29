@@ -7,6 +7,9 @@ struct SettingsView: View {
     @State private var apiKey = ""
     @State private var hasSavedKey = false
     @State private var statusMessage: String?
+    @State private var exportDocument: EntryExportDocument?
+    @State private var exportFormat: EntryExportFormat = .json
+    @State private var showingExporter = false
 
     var body: some View {
         Form {
@@ -39,15 +42,15 @@ struct SettingsView: View {
                 } label: {
                     Label("自定义事件", systemImage: "square.grid.2x2")
                 }
-                if let jsonExport {
-                    ShareLink(item: jsonExport) {
-                        Label("导出 JSON", systemImage: "doc.text")
-                    }
+                Button {
+                    prepareExport(.json)
+                } label: {
+                    Label("导出 JSON", systemImage: "doc.text")
                 }
-                if let csvExport {
-                    ShareLink(item: csvExport) {
-                        Label("导出 CSV", systemImage: "tablecells")
-                    }
+                Button {
+                    prepareExport(.csv)
+                } label: {
+                    Label("导出 CSV", systemImage: "tablecells")
                 }
                 LabeledContent {
                     Text("需 Apple 配置")
@@ -70,6 +73,17 @@ struct SettingsView: View {
         }
         .navigationTitle("设置")
         .onAppear { hasSavedKey = KeychainStore.readAPIKey() != nil }
+        .fileExporter(
+            isPresented: $showingExporter,
+            document: exportDocument,
+            contentType: exportFormat.contentType,
+            defaultFilename: exportFilename
+        ) { result in
+            if case .failure(let error) = result {
+                statusMessage = error.localizedDescription
+            }
+            exportDocument = nil
+        }
         .alert("LifeBook", isPresented: Binding(
             get: { statusMessage != nil },
             set: { if !$0 { statusMessage = nil } }
@@ -93,13 +107,22 @@ struct SettingsView: View {
         }
     }
 
-    private var jsonExport: JSONEntryExport? {
-        guard let data = try? EntryExporter.data(for: entries, format: .json) else { return nil }
-        return JSONEntryExport(data: data)
+    private func prepareExport(_ format: EntryExportFormat) {
+        do {
+            exportFormat = format
+            exportDocument = EntryExportDocument(
+                data: try EntryExporter.data(for: entries, format: format)
+            )
+            showingExporter = true
+        } catch {
+            statusMessage = error.localizedDescription
+        }
     }
 
-    private var csvExport: CSVEntryExport? {
-        guard let data = try? EntryExporter.data(for: entries, format: .csv) else { return nil }
-        return CSVEntryExport(data: data)
+    private var exportFilename: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "LifeBook-\(formatter.string(from: .now)).\(exportFormat.fileExtension)"
     }
 }

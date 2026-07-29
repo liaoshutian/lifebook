@@ -49,6 +49,7 @@ jobs:
 
       - name: Export code coverage
         if: always() && hashFiles('TestResults.xcresult/**') != ''
+        continue-on-error: true
         run: |
           xcrun xccov view --report --json TestResults.xcresult > coverage.json
 
