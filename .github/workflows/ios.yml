@@ -53,7 +53,9 @@ jobs:
             -resultBundlePath TestResults.xcresult \
             -enableCodeCoverage YES \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 120 \
             | tee xcodebuild.log
 
       - name: Export code coverage
