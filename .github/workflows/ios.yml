@@ -2,7 +2,7 @@ name: iOS
 
 on:
   push:
-    branches: [main, "agent/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +24,15 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
           xcodebuild -version
+          sudo xcodebuild -runFirstLaunch
+
+      - name: Ensure iOS Simulator runtime
+        run: |
+          if ! xcrun simctl list runtimes available | grep -q 'iOS'; then
+            xcodebuild -downloadPlatform iOS
+          fi
+          xcrun simctl list runtimes available
+          xcrun simctl list devices available
 
       - name: Install XcodeGen
         run: brew install xcodegen
