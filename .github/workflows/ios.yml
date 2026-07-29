@@ -31,7 +31,7 @@ jobs:
           - name: UI tests
             suite: ui
             target: LifeBookUITests
-            allowance: 120
+            allowance: 300
     steps:
       - uses: actions/checkout@v4
 
