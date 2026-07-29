@@ -60,6 +60,8 @@ GitHub Actions 使用 macOS 15、Xcode 16.4 和 iPhone 16 模拟器执行：
 运行 `Package IPA` 工作流后，CI 会校验证书与 Profile 的 Team/Bundle ID、
 归档、导出 IPA、验证代码签名，并上传 IPA 和 SHA-256 文件。直接安装到已登记设备，
 请选择 `ad-hoc`，并确保设备 UDID 已包含在 Provisioning Profile 中。
+工作流会将这些便于选择的名称映射为 Xcode 16 的 `release-testing`、`debugging`
+和 `app-store-connect` 导出方法。
 
 ## AI 数据边界
 

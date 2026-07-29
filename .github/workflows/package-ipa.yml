@@ -133,7 +133,16 @@ jobs:
           DISTRIBUTION_METHOD: ${{ inputs.distribution_method }}
           PROFILE_NAME: ${{ steps.signing.outputs.profile_name }}
         run: |
-          /usr/libexec/PlistBuddy -c 'Add :method string '"$DISTRIBUTION_METHOD" "$RUNNER_TEMP/ExportOptions.plist"
+          case "$DISTRIBUTION_METHOD" in
+            ad-hoc) XCODE_EXPORT_METHOD=release-testing ;;
+            development) XCODE_EXPORT_METHOD=debugging ;;
+            app-store-connect) XCODE_EXPORT_METHOD=app-store-connect ;;
+            *)
+              echo "::error::Unsupported distribution method: $DISTRIBUTION_METHOD"
+              exit 1
+              ;;
+          esac
+          /usr/libexec/PlistBuddy -c 'Add :method string '"$XCODE_EXPORT_METHOD" "$RUNNER_TEMP/ExportOptions.plist"
           /usr/libexec/PlistBuddy -c 'Add :signingStyle string manual' "$RUNNER_TEMP/ExportOptions.plist"
           /usr/libexec/PlistBuddy -c 'Add :teamID string '"$APPLE_TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
           /usr/libexec/PlistBuddy -c 'Add :stripSwiftSymbols bool true' "$RUNNER_TEMP/ExportOptions.plist"
