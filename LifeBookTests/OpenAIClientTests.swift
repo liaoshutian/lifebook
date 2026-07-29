@@ -24,7 +24,7 @@ final class OpenAIClientTests: XCTestCase {
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer secret")
 
-            let body = try XCTUnwrap(request.httpBody)
+            let body = try requestBody(request)
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(json["model"] as? String, "test-model")
             XCTAssertEqual(json["max_output_tokens"] as? Int, 900)
@@ -98,6 +98,32 @@ final class OpenAIClientTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+}
+
+private func requestBody(_ request: URLRequest) throws -> Data {
+    if let body = request.httpBody {
+        return body
+    }
+    let stream = try XCTUnwrap(request.httpBodyStream)
+    stream.open()
+    defer { stream.close() }
+
+    var data = Data()
+    let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4_096)
+    defer { buffer.deallocate() }
+    while stream.hasBytesAvailable {
+        let count = stream.read(buffer, maxLength: 4_096)
+        if count < 0 {
+            throw stream.streamError ?? NSError(
+                domain: "OpenAIClientTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to read request body stream"]
+            )
+        }
+        if count == 0 { break }
+        data.append(buffer, count: count)
+    }
+    return data
 }
 
 private final class MockURLProtocol: URLProtocol {

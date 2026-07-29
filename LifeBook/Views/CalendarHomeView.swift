@@ -87,13 +87,13 @@ private struct MonthCalendarView: View {
             .padding(.horizontal)
 
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(calendar.veryShortWeekdaySymbols, id: \.self) { weekday in
+                ForEach(Array(calendar.veryShortWeekdaySymbols.enumerated()), id: \.offset) { _, weekday in
                     Text(weekday)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                 }
-                ForEach(days, id: \.self) { date in
+                ForEach(Array(days.enumerated()), id: \.offset) { _, date in
                     if let date {
                         DayCell(
                             date: date,

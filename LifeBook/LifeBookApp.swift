@@ -3,7 +3,9 @@ import SwiftUI
 
 @main
 struct LifeBookApp: App {
-    private let isUITesting = ProcessInfo.processInfo.arguments.contains("-ui-testing")
+    private let isTesting =
+        ProcessInfo.processInfo.arguments.contains("-ui-testing") ||
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     var body: some Scene {
         WindowGroup {
@@ -12,7 +14,7 @@ struct LifeBookApp: App {
         }
         .modelContainer(
             for: [LifeEntry.self, EventDefinition.self],
-            inMemory: isUITesting
+            inMemory: isTesting
         )
     }
 }
