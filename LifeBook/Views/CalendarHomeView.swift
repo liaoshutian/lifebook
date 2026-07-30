@@ -31,6 +31,7 @@ struct CalendarHomeView: View {
                 EventStreamView(entries: entries)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .safeAreaInset(edge: .bottom) {
             Button {
                 showingQuickRecord = true
