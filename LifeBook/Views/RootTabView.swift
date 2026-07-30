@@ -3,9 +3,7 @@ import SwiftUI
 struct RootTabView: View {
     var body: some View {
         TabView {
-            NavigationStack {
-                CalendarHomeView()
-            }
+            CalendarHomeView()
             .tabItem { Label("日历", systemImage: "calendar") }
 
             NavigationStack {
@@ -20,4 +18,3 @@ struct RootTabView: View {
         }
     }
 }
-
