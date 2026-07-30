@@ -17,6 +17,7 @@ struct CalendarHomeView: View {
             }
             .pickerStyle(.segmented)
             .padding(.horizontal)
+            .padding(.top, 12)
             .padding(.bottom, 12)
 
             if mode == .calendar {
@@ -28,18 +29,6 @@ struct CalendarHomeView: View {
                 DayEntryList(date: selectedDate, entries: entriesForSelectedDate)
             } else {
                 EventStreamView(entries: entries)
-            }
-        }
-        .navigationTitle("LifeBook")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingQuickRecord = true
-                } label: {
-                    Image(systemName: "plus")
-                        .fontWeight(.semibold)
-                }
-                .accessibilityLabel("记一笔")
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -58,7 +47,6 @@ struct CalendarHomeView: View {
         }
         .sheet(isPresented: $showingQuickRecord) {
             QuickRecordSheet(defaultDate: selectedDate)
-                .presentationDetents([.medium, .large])
         }
     }
 
@@ -79,7 +67,7 @@ private struct MonthCalendarView: View {
             HStack {
                 Button { moveMonth(-1) } label: { Image(systemName: "chevron.left") }
                 Spacer()
-                Text(month.formatted(.dateTime.year().month(.wide)))
+                Text(ChineseDateFormatter.monthYear(month))
                     .font(.headline)
                 Spacer()
                 Button { moveMonth(1) } label: { Image(systemName: "chevron.right") }
@@ -87,7 +75,7 @@ private struct MonthCalendarView: View {
             .padding(.horizontal)
 
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(Array(calendar.veryShortWeekdaySymbols.enumerated()), id: \.offset) { _, weekday in
+                ForEach(Array(ChineseDateFormatter.weekdaySymbols.enumerated()), id: \.offset) { _, weekday in
                     Text(weekday)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -159,8 +147,13 @@ private struct DayEntryList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(date.formatted(date: .complete, time: .omitted))
-                .font(.headline)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(ChineseDateFormatter.fullDate(date))
+                    .font(.headline)
+                Text(ChineseDateFormatter.lunarDate(date))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             if entries.isEmpty {
                 ContentUnavailableView("这天还没有记录", systemImage: "square.and.pencil")
                     .frame(maxWidth: .infinity, minHeight: 120)
@@ -185,7 +178,10 @@ struct EntryRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title).fontWeight(.medium)
                 if let detail {
-                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
@@ -196,9 +192,6 @@ struct EntryRow: View {
     }
 
     private var detail: String? {
-        if let value = entry.value { return "\(value.formatted()) \(entry.unit ?? "")" }
-        if let duration = entry.durationMinutes { return "\(duration) 分钟" }
-        if !entry.note.isEmpty { return entry.note }
-        return nil
+        EntryPresentation.summary(for: entry)
     }
 }

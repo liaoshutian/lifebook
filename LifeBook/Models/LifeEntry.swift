@@ -22,6 +22,7 @@ final class LifeEntry {
     var unit: String?
     var note: String
     var durationMinutes: Int?
+    var detailPayload: Data?
 
     var kind: EntryKind {
         get { EntryKind(rawValue: kindRawValue) ?? .occurrence }
@@ -39,7 +40,8 @@ final class LifeEntry {
         value: Double? = nil,
         unit: String? = nil,
         note: String = "",
-        durationMinutes: Int? = nil
+        durationMinutes: Int? = nil,
+        details: EntryDetails = EntryDetails()
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -52,6 +54,19 @@ final class LifeEntry {
         self.unit = unit
         self.note = note
         self.durationMinutes = durationMinutes
+        self.detailPayload = details.isEmpty ? nil : try? JSONEncoder().encode(details)
+    }
+
+    var details: EntryDetails {
+        get {
+            guard let detailPayload else { return EntryDetails() }
+            return (try? JSONDecoder().decode(EntryDetails.self, from: detailPayload))
+                ?? EntryDetails()
+        }
+        set {
+            detailPayload = newValue.isEmpty
+                ? nil
+                : try? JSONEncoder().encode(newValue)
+        }
     }
 }
-

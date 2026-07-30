@@ -27,8 +27,21 @@ final class LifeBookUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["记一笔"].waitForExistence(timeout: 2))
 
         app.buttons["理发"].tap()
+        XCTAssertTrue(app.navigationBars["理发"].waitForExistence(timeout: 2))
+        app.buttons["保存记录"].tap()
 
         XCTAssertTrue(app.staticTexts["理发"].waitForExistence(timeout: 2))
+    }
+
+    func testIllnessRecordProvidesHealthDetails() {
+        app.buttons["记一笔"].firstMatch.tap()
+        app.buttons["生病"].tap()
+
+        XCTAssertTrue(app.navigationBars["生病"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.textFields["疾病或诊断名称"].exists)
+        XCTAssertTrue(app.textFields["体温"].exists)
+        XCTAssertTrue(app.staticTexts["症状"].exists)
+        XCTAssertTrue(app.buttons["就医情况"].exists)
     }
 
     func testCreateCustomEventThenQuickRecordIt() {

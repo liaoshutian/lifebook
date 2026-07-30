@@ -3,7 +3,12 @@ import XCTest
 
 final class EntryExporterTests: XCTestCase {
     func testJSONRoundTripContainsAllPublicFields() throws {
-        let entry = makeEntry(note: "状态很好")
+        let entry = makeEntry(
+            note: "状态很好",
+            details: EntryDetails(values: [
+                EntryDetailFieldID.bodyFatPercentage.rawValue: .number(18.2)
+            ])
+        )
         let data = try EntryExporter.data(for: [entry], format: .json)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: data) as? [[String: Any]]
@@ -13,6 +18,11 @@ final class EntryExporterTests: XCTestCase {
         XCTAssertEqual(object?["title"] as? String, "体重")
         XCTAssertEqual(object?["value"] as? Double, 68.5)
         XCTAssertEqual(object?["note"] as? String, "状态很好")
+        let details = try XCTUnwrap(object?["details"] as? [[String: Any]])
+        XCTAssertTrue(details.contains {
+            $0["label"] as? String == "体脂率" &&
+                $0["value"] as? String == "18.2 %"
+        })
     }
 
     func testCSVEscapesCommaQuoteAndNewline() throws {
@@ -23,6 +33,19 @@ final class EntryExporterTests: XCTestCase {
         XCTAssertTrue(csv.hasPrefix("id,timestamp,event_id,title,kind"))
         XCTAssertTrue(csv.contains("\"很好,\"\"继续\"\"\n明天\""))
         XCTAssertTrue(csv.hasSuffix("\r\n"))
+    }
+
+    func testCSVIncludesHumanReadableStructuredDetails() throws {
+        let entry = makeEntry(details: EntryDetails(values: [
+            EntryDetailFieldID.measurementState.rawValue: .choice("fasting"),
+            EntryDetailFieldID.waistCircumference.rawValue: .number(82)
+        ]))
+        let data = try EntryExporter.data(for: [entry], format: .csv)
+        let csv = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertTrue(csv.contains("details"))
+        XCTAssertTrue(csv.contains("测量状态：空腹"))
+        XCTAssertTrue(csv.contains("腰围：82 cm"))
     }
 
     func testExportSortsEntriesOldestFirst() throws {
@@ -37,7 +60,8 @@ final class EntryExporterTests: XCTestCase {
     private func makeEntry(
         id: UUID = UUID(),
         timestamp: Date = Date(timeIntervalSince1970: 1_900_000_000),
-        note: String = ""
+        note: String = "",
+        details: EntryDetails = EntryDetails()
     ) -> LifeEntry {
         LifeEntry(
             id: id,
@@ -49,7 +73,8 @@ final class EntryExporterTests: XCTestCase {
             kind: .measurement,
             value: 68.5,
             unit: "kg",
-            note: note
+            note: note,
+            details: details
         )
     }
 }

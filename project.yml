@@ -25,6 +25,7 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_NSFaceIDUsageDescription: 用 Face ID 保护你的私人记录
         GENERATE_INFOPLIST_FILE: true
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
     scheme:
       testTargets:

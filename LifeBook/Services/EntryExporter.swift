@@ -34,7 +34,10 @@ enum EntryExporter {
         case .csv:
             let formatter = ISO8601DateFormatter()
             var rows = [
-                ["id", "timestamp", "event_id", "title", "kind", "value", "unit", "duration_minutes", "note"]
+                [
+                    "id", "timestamp", "event_id", "title", "kind", "value",
+                    "unit", "duration_minutes", "details", "note"
+                ]
             ]
             let recordRows: [[String]] = records.map {
                 [
@@ -46,6 +49,9 @@ enum EntryExporter {
                     $0.value.map { String($0) } ?? "",
                     $0.unit ?? "",
                     $0.durationMinutes.map { String($0) } ?? "",
+                    $0.details
+                        .map { "\($0.label)：\($0.value)" }
+                        .joined(separator: "；"),
                     $0.note
                 ]
             }
@@ -97,6 +103,8 @@ private struct ExportRecord: Codable {
     let unit: String?
     let note: String
     let durationMinutes: Int?
+    let details: [EntryDetailDisplayItem]
+    let detailValues: [String: EntryDetailValue]
 
     init(_ entry: LifeEntry) {
         id = entry.id
@@ -110,5 +118,7 @@ private struct ExportRecord: Codable {
         unit = entry.unit
         note = entry.note
         durationMinutes = entry.durationMinutes
+        details = EntryPresentation.detailItems(for: entry)
+        detailValues = entry.details.values
     }
 }

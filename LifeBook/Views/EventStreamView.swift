@@ -14,8 +14,13 @@ struct EventStreamView: View {
                         Section {
                             ForEach(entriesFor(day)) { EntryRow(entry: $0) }
                         } header: {
-                            Text(day.formatted(date: .complete, time: .omitted))
-                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ChineseDateFormatter.fullDate(day))
+                                    .font(.headline)
+                                Text(ChineseDateFormatter.lunarDate(day))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 6)
                                 .background(.background)
@@ -36,4 +41,3 @@ struct EventStreamView: View {
         entries.filter { Calendar.current.isDate($0.timestamp, inSameDayAs: date) }
     }
 }
-

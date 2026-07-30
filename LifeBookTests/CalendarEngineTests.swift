@@ -42,4 +42,26 @@ final class CalendarEngineTests: XCTestCase {
         XCTAssertEqual(components.minute, 42)
         XCTAssertEqual(components.second, 5)
     }
+
+    func testChineseDateFormattingDoesNotDependOnDeviceLocale() throws {
+        let timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let date = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 30,
+            hour: 12
+        )))
+
+        XCTAssertEqual(ChineseDateFormatter.monthYear(date, timeZone: timeZone), "2026年7月")
+        XCTAssertEqual(
+            ChineseDateFormatter.fullDate(date, timeZone: timeZone),
+            "2026年7月30日 星期四"
+        )
+        XCTAssertEqual(
+            ChineseDateFormatter.lunarDate(date, timeZone: timeZone),
+            "丙午年六月十七"
+        )
+    }
 }

@@ -114,16 +114,9 @@ enum AIContextBuilder {
             .filter { $0.timestamp >= cutoff && $0.timestamp <= now }
             .sorted { $0.timestamp < $1.timestamp }
             .map { entry in
-                var details: [String] = []
-                if let value = entry.value {
-                    details.append("\(value.formatted())\(entry.unit ?? "")")
-                }
-                if let duration = entry.durationMinutes {
-                    details.append("\(duration)分钟")
-                }
-                if !entry.note.isEmpty {
-                    details.append("备注：\(entry.note)")
-                }
+                let details = EntryPresentation
+                    .allItems(for: entry)
+                    .map { "\($0.label)：\($0.value)" }
                 let suffix = details.isEmpty ? "" : "；" + details.joined(separator: "；")
                 return "- \(formatter.string(from: entry.timestamp))：\(entry.title)\(suffix)"
             }

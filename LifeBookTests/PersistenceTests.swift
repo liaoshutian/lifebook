@@ -28,7 +28,11 @@ final class PersistenceTests: XCTestCase {
             symbol: definition.symbol,
             colorHex: definition.colorHex,
             kind: definition.kind,
-            durationMinutes: 20
+            durationMinutes: 20,
+            details: EntryDetails(values: [
+                EntryDetailFieldID.swimDistance.rawValue: .number(1_000),
+                EntryDetailFieldID.swimStroke.rawValue: .choice("freestyle")
+            ])
         )
 
         context.insert(definition)
@@ -41,5 +45,9 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(definitions.first?.preset.title, "冥想")
         XCTAssertEqual(entries.count, 1)
         XCTAssertEqual(entries.first?.durationMinutes, 20)
+        XCTAssertEqual(
+            entries.first?.details[EntryDetailFieldID.swimDistance.rawValue],
+            .number(1_000)
+        )
     }
 }
