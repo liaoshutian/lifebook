@@ -1,0 +1,116 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: ${{ matrix.name }}
+    runs-on: macos-15-intel
+    # A cold hosted runner may need to download the iOS runtime before compiling.
+    # Individual tests still have strict execution allowances below.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Unit and integration tests
+            suite: unit
+            target: LifeBookTests
+            allowance: 60
+          - name: UI tests
+            suite: ui
+            target: LifeBookUITests
+            allowance: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          xcodebuild -version
+          sudo xcodebuild -runFirstLaunch
+
+      - name: Ensure iOS Simulator runtime
+        run: |
+          if ! xcrun simctl list runtimes available | grep -q 'iOS'; then
+            xcodebuild -downloadPlatform iOS
+          fi
+          xcrun simctl list runtimes available
+
+      - name: Create and boot simulator
+        id: simulator
+        run: |
+          RUNTIME_ID=$(xcrun simctl list runtimes available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["runtimes"]
+          ios = [item for item in runtimes if item["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS")]
+          if not ios:
+              raise SystemExit("No available iOS runtime")
+          print(ios[-1]["identifier"])
+          ')
+          SIMULATOR_ID=$(xcrun simctl create \
+            'LifeBook CI' \
+            'com.apple.CoreSimulator.SimDeviceType.iPhone-16' \
+            "$RUNTIME_ID")
+          xcrun simctl boot "$SIMULATOR_ID"
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          echo "udid=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: |
+          xcodegen generate
+          xcodebuild -list -project LifeBook.xcodeproj
+
+      - name: Build and run ${{ matrix.suite }} tests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project LifeBook.xcodeproj \
+            -scheme LifeBook \
+            -destination 'platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}' \
+            -derivedDataPath DerivedData \
+            -resultBundlePath 'TestResults-${{ matrix.suite }}.xcresult' \
+            -enableCodeCoverage YES \
+            -parallel-testing-enabled NO \
+            -only-testing:'${{ matrix.target }}' \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance '${{ matrix.allowance }}' \
+            -maximum-test-execution-time-allowance '${{ matrix.allowance }}' \
+            | tee 'xcodebuild-${{ matrix.suite }}.log'
+
+      - name: Export code coverage
+        if: always()
+        continue-on-error: true
+        run: |
+          xcrun xccov view \
+            --report \
+            --json \
+            'TestResults-${{ matrix.suite }}.xcresult' \
+            > 'coverage-${{ matrix.suite }}.json'
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ matrix.suite }}-test-results
+          path: |
+            TestResults-${{ matrix.suite }}.xcresult
+            coverage-${{ matrix.suite }}.json
+            xcodebuild-${{ matrix.suite }}.log
+          if-no-files-found: warn
+          retention-days: 14
